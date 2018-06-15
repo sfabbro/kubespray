@@ -57,38 +57,16 @@ terraform apply \
 
 # prepare ansible stuff
 # changes from default to use coreos
+# need some work
 sed -e 's|\(bootstrap_os:\).*|\1 coreos|' \
     -e 's|\(bin_dir:\).*|\1 /opt/bin|' \
     -e 's|\(cloud_provider:\).*|\1 openstack|' \
     -i inventory/${cluster_name}/group_vars/all.yml
-sed -e -e 's|\(kube_network_plugin:\).*|\1 flannel|' \
-sed -e -e 's|\(resolvconf_mode:\).*|\1 host_resolvconf|' \
+sed -e 's|\(kube_network_plugin:\).*|\1 flannel|' \
+    -e 's|\(resolvconf_mode:\).*|\1 host_resolvconf|' \
     -i inventory/${cluster_name}/group_vars/k8s-cluster.yml
 
 eval $(ssh-agent -s)
 ssh-add ${ssh_private_key}
 
 ansible-playbook --become -i inventory/${cluster_name}/hosts cluster.yml
-
-# prepare kubectl
-ssh ${ssh_user}@${master_ip} \
-    sudo cat /etc/kubernetes/ssl/admin-${cluster_name}-k8s-master-1-key.pem \
-    > inventory/${cluster_name}/admin-key.pem
-ssh ${ssh_user}@${master_ip} \
-    sudo cat /etc/kubernetes/ssl/admin-${cluster_name}-k8s-master-1.pem \
-    > inventory/${cluster_name}/admin.pem
-ssh ${ssh_user}@${master_ip} \
-    sudo cat /etc/kubernetes/ssl/ca.pem \
-    > inventory/${cluster_name}/ca.pem
-
-kubectl config set-cluster default-cluster \
-	--server=https://${master_internal_ip}:6443 \
-	--certificate-authority=inventory/${cluster_name}/ca.pem
-
-kubectl config set-credentials default-admin \
-	--certificate-authority=inventory/${cluster_name}/ca.pem \
-	--client-key=inventory/${cluster_name}/admin-key.pem \
-	--client-certificate=inventory/${cluster_name}/admin.pem
-
-kubectl config set-context default-system --cluster=default-cluster --user=default-admin
-kubectl config use-context default-system
